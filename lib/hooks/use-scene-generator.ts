@@ -680,6 +680,25 @@ export function useSceneGenerator(options: UseSceneGeneratorOptions = {}) {
             store.getState().setGenerationStatus('completed');
             store.getState().setGeneratingOutlines([]);
             store.getState().setGenerationComplete(true);
+
+            // Persist course to server disk so the classroom opens in other browsers
+            try {
+              const finalState = store.getState();
+              const finalStage = finalState.stage;
+              const finalScenes = finalState.scenes;
+              if (finalStage && finalScenes.length > 0) {
+                await fetch('/api/classroom', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ stage: finalStage, scenes: finalScenes }),
+                });
+                log.info('Classroom persisted to server disk:', finalStage.id);
+              }
+            } catch (persistErr) {
+              // Non-fatal — generation is complete, disk write failure should not block the user
+              log.warn('Failed to persist classroom to server disk:', persistErr);
+            }
+
             options.onComplete?.();
           }
         }
