@@ -928,6 +928,26 @@ export const TTS_PROVIDERS: Record<BuiltInTTSProviderId, TTSProviderConfig> = {
     speedRange: { min: 0.7, max: 1.2, default: 1.0 },
   },
 
+  'deepgram-tts': {
+    id: 'deepgram-tts',
+    name: 'Deepgram TTS',
+    requiresApiKey: true,
+    defaultBaseUrl: 'https://api.deepgram.com/v1',
+    icon: '/logos/deepgram.svg',
+    voices: [
+      { id: 'aura-2-thalia-en', name: 'Thalia', language: 'en', gender: 'female' },
+      { id: 'aura-2-orion-en', name: 'Orion', language: 'en', gender: 'male' },
+      { id: 'aura-2-luna-en', name: 'Luna', language: 'en', gender: 'female' },
+      { id: 'aura-2-stella-en', name: 'Stella', language: 'en', gender: 'female' },
+      { id: 'aura-2-athena-en', name: 'Athena', language: 'en', gender: 'female' },
+      { id: 'aura-2-hera-en', name: 'Hera', language: 'en', gender: 'female' },
+      { id: 'aura-2-zeus-en', name: 'Zeus', language: 'en', gender: 'male' },
+      { id: 'aura-2-arcas-en', name: 'Arcas', language: 'en', gender: 'male' },
+    ],
+    supportedFormats: ['mp3'],
+    // Deepgram does not support speed adjustment
+  },
+
   'browser-native-tts': {
     id: 'browser-native-tts',
     name: '浏览器原生 (Web Speech API)',
@@ -1281,6 +1301,7 @@ export const DEFAULT_TTS_VOICES: Record<BuiltInTTSProviderId, string> = {
   'voxcpm-tts': VOXCPM_AUTO_VOICE_ID,
   'doubao-tts': 'zh_female_vv_uranus_bigtts',
   'elevenlabs-tts': 'EXAVITQu4vr4xnSDxMaL',
+  'deepgram-tts': 'aura-2-thalia-en',
   'minimax-tts': 'female-yujie',
   'lemonade-tts': 'af_heart',
   'browser-native-tts': 'default',

@@ -146,6 +146,7 @@ function getTTSProviderName(providerId: TTSProviderId, t: (key: string) => strin
     'voxcpm-tts': t('settings.providerVoxCPMTTS'),
     'doubao-tts': t('settings.providerDoubaoTTS'),
     'elevenlabs-tts': t('settings.providerElevenLabsTTS'),
+    'deepgram-tts': t('settings.providerDeepgramTTS'),
     'minimax-tts': t('settings.providerMiniMaxTTS'),
     'lemonade-tts': t('settings.providerLemonadeTTS'),
     'browser-native-tts': t('settings.providerBrowserNativeTTS'),

@@ -175,6 +175,8 @@ export async function generateTTS(
       return await generateDoubaoTTS(config, text);
     case 'elevenlabs-tts':
       return await generateElevenLabsTTS(config, text);
+    case 'deepgram-tts':
+      return await generateDeepgramTTS(config, text);
 
     case 'lemonade-tts':
       return await generateLemonadeTTS(config, text);
@@ -811,6 +813,38 @@ async function generateElevenLabsTTS(
   return {
     audio: new Uint8Array(arrayBuffer),
     format: requestedFormat,
+  };
+}
+
+/**
+ * Deepgram TTS implementation (Aura-2 model, MP3 output)
+ * Docs: https://developers.deepgram.com/docs/text-to-speech
+ */
+async function generateDeepgramTTS(
+  config: TTSModelConfig,
+  text: string,
+): Promise<TTSGenerationResult> {
+  const baseUrl = config.baseUrl || TTS_PROVIDERS['deepgram-tts'].defaultBaseUrl;
+  const voice = config.voice || 'aura-2-thalia-en';
+
+  const response = await fetch(`${baseUrl}/speak?model=${encodeURIComponent(voice)}&encoding=mp3`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Token ${config.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ text }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => response.statusText);
+    throw new Error(`Deepgram TTS API error: ${errorText || response.statusText}`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  return {
+    audio: new Uint8Array(arrayBuffer),
+    format: 'mp3',
   };
 }
 

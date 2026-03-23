@@ -1226,6 +1226,7 @@
     "providerVoxCPMTTS": "VoxCPM2",
     "providerDoubaoTTS": "Doubao TTS 2.0 (Volcengine)",
     "providerElevenLabsTTS": "ElevenLabs TTS",
+    "providerDeepgramTTS": "Deepgram TTS",
     "providerMiniMaxTTS": "MiniMax TTS",
     "providerLemonadeTTS": "Lemonade TTS (Local)",
     "providerBrowserNativeTTS": "Browser Native TTS",
