@@ -825,9 +825,10 @@ async function generateDeepgramTTS(
   text: string,
 ): Promise<TTSGenerationResult> {
   const baseUrl = config.baseUrl || TTS_PROVIDERS['deepgram-tts'].defaultBaseUrl;
-  const voice = config.voice || 'aura-2-thalia-en';
+  // customModel takes priority over voice dropdown selection
+  const model = config.customModel?.trim() || config.voice || 'aura-2-asteria-en';
 
-  const response = await fetch(`${baseUrl}/speak?model=${encodeURIComponent(voice)}&encoding=mp3`, {
+  const response = await fetch(`${baseUrl}/speak?model=${encodeURIComponent(model)}`, {
     method: 'POST',
     headers: {
       Authorization: `Token ${config.apiKey}`,
@@ -873,6 +874,7 @@ export async function getCurrentTTSConfig(): Promise<TTSModelConfig> {
     baseUrl: providerConfig?.baseUrl || providerConfig?.customDefaultBaseUrl,
     voice: ttsVoice,
     speed: ttsSpeed,
+    customModel: providerConfig?.customModel,
   };
 }
 

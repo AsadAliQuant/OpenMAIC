@@ -214,6 +214,8 @@ export function TTSSettings({ selectedProviderId }: TTSSettingsProps) {
         return getVoxCPMBackendEndpoint(voxcpmBackend);
       case 'elevenlabs-tts':
         return '/text-to-speech';
+      case 'deepgram-tts':
+        return `/speak?model=${ttsVoice || 'aura-2-asteria-en'}`;
       case 'doubao-tts':
         return '/unidirectional';
       default:

@@ -29,7 +29,12 @@ import {
   voxCPMBackendSupportsReferenceAudio,
 } from '@/lib/audio/voxcpm';
 
-/** Extract the English name from voice name format "ChineseName (English)" */
+/**
+ * Extract the English name from voice name format "ChineseName (English)".
+ * Only strips to inside-parens when the prefix contains non-ASCII characters
+ * (e.g. "晓晓 (Jenny)" → "Jenny"). For already-English names like
+ * "Asteria (Female)" the full name is returned as-is.
+ */
 function getVoiceDisplayName(
   id: string,
   name: string,
@@ -40,8 +45,15 @@ function getVoiceDisplayName(
     return t('settings.voxcpmAutoVoice');
   }
   if (lang === 'en-US') {
-    const match = name.match(/\(([^)]+)\)/);
-    return match ? match[1] : name;
+    const match = name.match(/^([^(]+)\s*\(([^)]+)\)/);
+    if (match) {
+      const prefix = match[1].trim();
+      // Only pull out the bracketed part when the prefix is non-ASCII (Chinese etc.)
+      if (/[^\x00-\x7F]/.test(prefix)) {
+        return match[2];
+      }
+    }
+    return name;
   }
   return name;
 }

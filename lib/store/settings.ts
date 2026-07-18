@@ -88,6 +88,8 @@ export interface SettingsState {
       isServerConfigured?: boolean;
       /** Admin/server-level force-off (server-providers.yml / env). Overrides `enabled`. */
       serverDisabled?: boolean;
+      serverBaseUrl?: string;
+      customModel?: string;
       // Custom provider fields
       customName?: string;
       customDefaultBaseUrl?: string;
@@ -467,6 +469,7 @@ const getDefaultAudioConfig = () => ({
     },
     'doubao-tts': { apiKey: '', baseUrl: '', enabled: true },
     'elevenlabs-tts': { apiKey: '', baseUrl: '', enabled: true },
+    'deepgram-tts': { apiKey: '', baseUrl: '', enabled: true, customModel: '' },
     'minimax-tts': { apiKey: '', baseUrl: '', modelId: 'speech-2.8-hd', enabled: true },
     'lemonade-tts': {
       apiKey: '',
@@ -479,7 +482,7 @@ const getDefaultAudioConfig = () => ({
     'browser-native-tts': { apiKey: '', baseUrl: '', enabled: false },
   } as Record<
     TTSProviderId,
-    { apiKey: string; baseUrl: string; modelId?: string; enabled: boolean }
+    { apiKey: string; baseUrl: string; modelId?: string; enabled: boolean; customModel?: string }
   >,
   asrProvidersConfig: {
     'openai-whisper': { apiKey: '', baseUrl: '', enabled: true },
