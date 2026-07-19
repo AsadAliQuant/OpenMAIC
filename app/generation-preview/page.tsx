@@ -572,6 +572,7 @@ function GenerationPreviewContent() {
         updatedAt: Date.now(),
         interactiveMode: !!currentSession.requirements.interactiveMode,
         taskEngineMode: currentSession.taskEngineMode === true,
+        solverMode: !!currentSession.requirements.solverMode,
       };
 
       // ── Generate outlines first (infers languageDirective) ──

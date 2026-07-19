@@ -79,6 +79,7 @@ export interface UserRequirements {
   webSearch?: boolean; // Enable web search for richer context
   interactiveMode?: boolean; // Enable Interactive Mode for interactive-first generation
   taskEngineMode?: boolean; // Enable vocational task-engine generation path
+  solverMode?: boolean; // Enable Math Solver tutor-style generation path
 }
 
 // ==================== Stage 1 Output: Scene Outlines (Simplified) ====================

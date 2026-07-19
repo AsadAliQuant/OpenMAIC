@@ -43,6 +43,7 @@ export interface StageListItem {
   updatedAt: number;
   interactiveMode?: boolean;
   taskEngineMode?: boolean;
+  solverMode?: boolean;
 }
 
 /**
@@ -67,6 +68,7 @@ export async function saveStageData(stageId: string, data: StageStoreData): Prom
         videoManifest: data.stage.videoManifest,
         interactiveMode: data.stage.interactiveMode,
         taskEngineMode: data.stage.taskEngineMode,
+        solverMode: data.stage.solverMode,
         generatedAgentConfigs: data.stage.generatedAgentConfigs,
       });
 
@@ -224,6 +226,7 @@ export async function listStages(): Promise<StageListItem[]> {
           updatedAt: stage.updatedAt,
           interactiveMode: stage.interactiveMode,
           taskEngineMode: stage.taskEngineMode,
+          solverMode: stage.solverMode,
         };
       }),
     );

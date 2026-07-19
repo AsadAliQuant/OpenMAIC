@@ -360,14 +360,17 @@ export async function POST(req: NextRequest) {
     // Build teacher context from agents (if available)
     const teacherContext = formatTeacherPersonaForPrompt(agents);
 
-    // Check if Interactive Mode or server-enabled Task Engine mode is enabled.
+    // Check if Math Solver, Interactive Mode, or server-enabled Task Engine mode is enabled.
+    const solverMode = requirements.solverMode ?? false;
     const interactiveMode = requirements.interactiveMode ?? false;
     const taskEngineMode = resolveVocationalActive(requirements);
-    const promptId = taskEngineMode
-      ? PROMPT_IDS.TASK_ENGINE_OUTLINES
-      : interactiveMode
-        ? PROMPT_IDS.INTERACTIVE_OUTLINES
-        : PROMPT_IDS.REQUIREMENTS_TO_OUTLINES;
+    const promptId = solverMode
+      ? PROMPT_IDS.MATH_SOLVER_OUTLINES
+      : taskEngineMode
+        ? PROMPT_IDS.TASK_ENGINE_OUTLINES
+        : interactiveMode
+          ? PROMPT_IDS.INTERACTIVE_OUTLINES
+          : PROMPT_IDS.REQUIREMENTS_TO_OUTLINES;
 
     const prompts = buildPrompt(promptId, {
       requirement: requirements.requirement,
