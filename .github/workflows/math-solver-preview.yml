@@ -1,0 +1,97 @@
+name: Math Solver Preview Tunnel
+
+# Hosts the claude/openmaric-math-solver-m97k8l branch on a runner and exposes
+# it through a Cloudflare quick tunnel so it can be tested from any device.
+# The public URL is written to the step summary and uploaded as the
+# "preview-url" artifact. The job idles until its timeout or manual cancel.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/openmaric-math-solver-deploy-bsgfio
+    paths:
+      - ".github/workflows/math-solver-preview.yml"
+
+concurrency:
+  group: math-solver-preview
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Check out math solver branch
+        uses: actions/checkout@v4
+        with:
+          ref: claude/openmaric-math-solver-m97k8l
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Start dev server
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEFAULT_MODEL: ${{ secrets.DEFAULT_MODEL }}
+        run: |
+          nohup pnpm dev > dev.log 2>&1 &
+          for i in $(seq 1 90); do
+            curl -sf -o /dev/null http://localhost:3000/ && break
+            sleep 2
+          done
+          curl -sf -o /dev/null http://localhost:3000/ || { cat dev.log; exit 1; }
+          echo "Dev server is up"
+
+      - name: Start Cloudflare tunnel
+        run: |
+          curl -sSL -o cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x cloudflared
+          nohup ./cloudflared tunnel --url http://localhost:3000 --no-autoupdate > tunnel.log 2>&1 &
+          URL=""
+          for i in $(seq 1 60); do
+            URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' tunnel.log | head -1 || true)
+            [ -n "$URL" ] && break
+            sleep 2
+          done
+          if [ -z "$URL" ]; then cat tunnel.log; exit 1; fi
+          echo "PUBLIC_URL=$URL"
+          printf '%s\n' "$URL" > preview-url.txt
+          {
+            echo "### Public preview URL"
+            echo "- App: $URL"
+            echo "- Math solver: $URL/solver"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload preview URL artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-url
+          path: preview-url.txt
+
+      - name: Keep tunnel alive
+        run: |
+          echo "Idling until job timeout or cancellation"
+          while true; do
+            sleep 60
+            curl -sf -o /dev/null http://localhost:3000/ || { echo "dev server died"; tail -50 dev.log; exit 1; }
+            pgrep -f "cloudflared" > /dev/null || { echo "tunnel died"; tail -50 tunnel.log; exit 1; }
+          done
