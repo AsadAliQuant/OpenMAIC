@@ -38,6 +38,11 @@ import { createLogger } from '@/lib/logger';
 import { resolveModelFromRequest } from '@/lib/server/resolve-model';
 import { sortDocumentImagesForVision } from '@/lib/document/bundle';
 import { resolveVocationalActive } from '@/lib/config/feature-flags';
+import {
+  buildSolverPromptVariables,
+  enforceSolverOutlinePolicy,
+  sanitizeSolverActivities,
+} from '@/lib/generation/solver-outline-policy';
 const log = createLogger('Outlines Stream');
 
 export const maxDuration = 300;
@@ -372,6 +377,11 @@ export async function POST(req: NextRequest) {
           ? PROMPT_IDS.INTERACTIVE_OUTLINES
           : PROMPT_IDS.REQUIREMENTS_TO_OUTLINES;
 
+    // Allowed solver activities — shapes the math-solver-outlines template and
+    // post-filters streamed outlines. The extra variables are harmless for the
+    // other prompt ids (their templates contain no solver placeholders).
+    const solverAllowed = sanitizeSolverActivities(requirements.solverActivities);
+
     const prompts = buildPrompt(promptId, {
       requirement: requirements.requirement,
       pdfContent: pdfText ? pdfText.substring(0, MAX_PDF_CONTENT_CHARS) : 'None',
@@ -383,6 +393,7 @@ export async function POST(req: NextRequest) {
       mediaEnabled: mediaGenerationEnabled,
       teacherContext,
       userProfile: userProfileText,
+      ...buildSolverPromptVariables(solverAllowed),
     });
 
     if (!prompts) {
@@ -522,9 +533,17 @@ export async function POST(req: NextRequest) {
                     ...outline,
                     order: parsedOutlines.length + 1,
                   };
+                  // Solver mode runs through the ordinary sanitizer first (so the
+                  // procedural-skill neutralization still applies), then the
+                  // activity policy demotes anything the user didn't toggle on.
                   const normalized = taskEngineMode
                     ? normalizeTaskEngineOutline(enrichedBase, requirements.requirement)
-                    : sanitizeNonTaskEngineOutline(enrichedBase);
+                    : solverMode
+                      ? enforceSolverOutlinePolicy(
+                          sanitizeNonTaskEngineOutline(enrichedBase),
+                          solverAllowed,
+                        )
+                      : sanitizeNonTaskEngineOutline(enrichedBase);
                   const enriched = ensureUniqueOutlineId(normalized, usedOutlineIds);
                   parsedOutlines.push(enriched);
 

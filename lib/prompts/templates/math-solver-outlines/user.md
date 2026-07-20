@@ -55,7 +55,7 @@ Never return a bare array. Never omit `languageDirective` or `courseTitle`. All 
 ```json
 {
   "id": "scene_1",
-  "type": "slide" | "quiz",
+  "type": "<one of the allowed scene types>",
   "title": "Scene Title (LaTeX allowed)",
   "description": "What this step accomplishes and why",
   "keyPoints": ["Point 1 (LaTeX allowed)", "Point 2", "Point 3"],
@@ -65,12 +65,13 @@ Never return a bare array. Never omit `languageDirective` or `courseTitle`. All 
 
 ### Special Notes
 
-- **Only `slide` and `quiz` scene types are allowed.** Do not use `interactive` or `pbl`.
-- **Structure**: understand the problem → step-by-step solution (one step per scene) → verify the answer → recap (+ optional practice quiz)
+- **Allowed scene types: {{solverSceneTypeList}}.** Do not use any other scene type.
+- **Structure**: understand the problem → step-by-step solution (one step per scene) → verify the answer → recap{{#if solverAllowQuiz}} (+ optional practice quiz){{/if}}
 {{#if hasSourceImages}}
 - **If source images are available**, add `suggestedImageIds` to relevant slide scenes. Only use image IDs listed under Available Images.
 {{/if}}
 - **Scene count**: 4-8 scenes total. Keep it focused on this one problem.
+{{#if solverAllowQuiz}}
 - **Quiz**: if you include a quiz scene, make it a single short-answer practice problem similar to the original, with:
    ```json
    "quizConfig": {
@@ -79,6 +80,13 @@ Never return a bare array. Never omit `languageDirective` or `courseTitle`. All 
      "questionTypes": ["short_answer"]
    }
    ```
+{{/if}}
+{{#if solverAllowInteractive}}
+- **Interactive**: an `interactive` scene must include `widgetType` (one of {{solverWidgetTypeList}}) and a `widgetOutline` object per the system prompt. Use interactive scenes only where exploration genuinely helps with *this* problem (max 1-2).
+{{/if}}
+{{#if solverAllowPbl}}
+- **Project**: at most one `pbl` scene, only for a substantial hands-on application of the technique, with a full `pblConfig` (projectTopic, projectDescription, targetSkills, issueCount).
+{{/if}}
 - **Math notation**: use LaTeX (`$...$` inline, `$$...$$` display) in titles, descriptions, and keyPoints.
 - **Language**: infer from the student's question, then output all content in that language.
 
