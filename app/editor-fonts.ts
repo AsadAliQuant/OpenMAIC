@@ -28,6 +28,11 @@ import '@fontsource/source-serif-4/400.css';
 import '@fontsource/source-serif-4/700.css';
 import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/700.css';
+// Cursive — the handwriting-reveal fallback font for Latin rich text
+// (lists, bold, etc.) that Vara's stroke font can't render plain (see
+// `lib/choreography/handwriting.ts`'s `cursiveFallbackFor`).
+import '@fontsource/caveat/400.css';
+import '@fontsource/caveat/700.css';
 
 // Chinese — @fontsource unicode-range-subsets these, so each loads lazily.
 import '@fontsource/noto-sans-sc/400.css';

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { PPTElement } from '@openmaic/dsl';
 import {
   buildTimeline,
   buildTimelineOptions,
@@ -7,6 +8,21 @@ import {
   sanitizeFilenamePart,
 } from '@/lib/video-export';
 import { NO_PROBE, playVideo, slide, speech, stubAssets, stubProbe } from './helpers';
+
+function textEl(id: string, content: string) {
+  return {
+    id,
+    type: 'text',
+    left: 0,
+    top: 0,
+    width: 200,
+    height: 60,
+    rotate: 0,
+    content,
+    defaultFontName: 'Microsoft YaHei',
+    defaultColor: '#333333',
+  } as unknown as PPTElement;
+}
 
 /** Run normalize → timeline → assets for a set of scenes. */
 function plan(
@@ -167,5 +183,40 @@ describe('planAssets — base frame & video', () => {
     const path = res.scenes[0].videos[0].assetRef!;
     expect(path).not.toContain('..');
     expect(path).toBe('media/clip.escape');
+  });
+});
+
+describe('planAssets — handwriting', () => {
+  it('plans an overlay frame for every handwriting segment, vara and wipe alike', () => {
+    // The export always reveals handwriting via a snapshot + clip-path wipe
+    // (deterministic; a real Vara.js instance would fetch its font at render
+    // time), so both modes get an asset — `mode` stays informational.
+    const res = plan([
+      slide('s', [speech('a', 'x')], {
+        elements: [textEl('e1', 'Plain Latin text'), textEl('e2', '你好世界')],
+      }),
+    ]);
+    const [vara, wipe] = res.scenes[0].handwriting;
+    expect(vara).toMatchObject({
+      elementId: 'e1',
+      mode: 'vara',
+      assetRef: 'frames/001-s/hw-e1.png',
+    });
+    expect(wipe).toMatchObject({
+      elementId: 'e2',
+      mode: 'wipe',
+      assetRef: 'frames/001-s/hw-e2.png',
+    });
+    expect(res.plan.entries).toContainEqual(
+      expect.objectContaining({
+        assetId: 'frame:s:e2',
+        kind: 'frame',
+        path: 'frames/001-s/hw-e2.png',
+        present: true,
+      }),
+    );
+    expect(res.plan.entries).toContainEqual(
+      expect.objectContaining({ assetId: 'frame:s:e1', path: 'frames/001-s/hw-e1.png' }),
+    );
   });
 });

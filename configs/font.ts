@@ -36,4 +36,5 @@ export const FONTS: readonly FontEntry[] = [
   { label: 'Literata', value: 'Literata' },
   { label: 'Source Serif 4', value: 'Source Serif 4' },
   { label: 'JetBrains Mono', value: 'JetBrains Mono' },
+  { label: 'Caveat', value: 'Caveat' },
 ];

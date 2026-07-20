@@ -71,7 +71,11 @@ var EASE_OUT_EXPO = cubicBezier(0.16, 1, 0.3, 1);
 var EASE_LASER = cubicBezier(0.22, 1, 0.36, 1);
 var EASE_IN = cubicBezier(0.4, 0, 1, 1);
 var EASE_OUT = cubicBezier(0, 0, 0.58, 1);
+var EASE_IN_OUT = cubicBezier(0.42, 0, 0.58, 1);
 `.trim();
+
+/** Identifier (in {@link EASE_DEFS}) for the standard ease-in-out curve — the handwriting wipe's easing. */
+export const EASE_IN_OUT_ID = 'EASE_IN_OUT';
 
 /** Format a number for HTML/JS output: trimmed to 4 decimals, no exponent. */
 function n(value: number): string {

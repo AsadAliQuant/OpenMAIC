@@ -15,7 +15,13 @@
 import type { PPTElement } from '@openmaic/dsl';
 import type { CompilerScene } from '../deps';
 import { findElementGeometry, findElementPlacement } from '../geometry';
-import type { Diagnostic, EffectSegment, VideoSegment, VideoTimelineScene } from '../ir';
+import type {
+  Diagnostic,
+  EffectSegment,
+  HandwritingSegment,
+  VideoSegment,
+  VideoTimelineScene,
+} from '../ir';
 
 export interface GeometryResult {
   scenes: VideoTimelineScene[];
@@ -56,9 +62,34 @@ export function resolveVideoPlacement(
 }
 
 /**
- * Fill every effect and video segment's geometry across all scenes.
- * `timelineScenes` and `sourceScenes` are aligned by index (both are the
- * normalized scene list).
+ * Resolve a handwriting segment's placement (geometry + rotation) — same
+ * lookup as a video's, since both need where + how-rotated to position
+ * overlay content on the frame. `degraded: true` + `geometry: null` +
+ * `rotate: 0` when the element could not be located.
+ */
+export function resolveHandwritingPlacement(
+  segment: HandwritingSegment,
+  elements: readonly PPTElement[] | undefined,
+): { segment: HandwritingSegment; unresolved: boolean } {
+  const placement = elements ? findElementPlacement([...elements], segment.elementId) : null;
+  if (placement) {
+    return {
+      segment: {
+        ...segment,
+        geometry: placement.geometry,
+        rotate: placement.rotate,
+        degraded: false,
+      },
+      unresolved: false,
+    };
+  }
+  return { segment: { ...segment, geometry: null, rotate: 0, degraded: true }, unresolved: true };
+}
+
+/**
+ * Fill every effect, video, and handwriting segment's geometry across all
+ * scenes. `timelineScenes` and `sourceScenes` are aligned by index (both are
+ * the normalized scene list).
  */
 export function applyGeometry(
   timelineScenes: readonly VideoTimelineScene[],
@@ -67,7 +98,8 @@ export function applyGeometry(
   const diagnostics: Diagnostic[] = [];
 
   const scenes = timelineScenes.map((scene, index) => {
-    if (scene.effects.length === 0 && scene.videos.length === 0) return scene;
+    if (scene.effects.length === 0 && scene.videos.length === 0 && scene.handwriting.length === 0)
+      return scene;
 
     const elements = sourceScenes[index]?.content?.canvas?.elements;
 
@@ -99,7 +131,21 @@ export function applyGeometry(
       return resolved;
     });
 
-    return { ...scene, effects, videos };
+    const handwriting = scene.handwriting.map((segment) => {
+      const { segment: resolved, unresolved } = resolveHandwritingPlacement(segment, elements);
+      if (unresolved) {
+        diagnostics.push({
+          severity: 'warn',
+          code: 'unresolved-element',
+          sceneId: scene.id,
+          actionId: segment.actionId,
+          message: `handwriting target element "${segment.elementId}" has no geometry; write degraded.`,
+        });
+      }
+      return resolved;
+    });
+
+    return { ...scene, effects, videos, handwriting };
   });
 
   return { scenes, diagnostics };

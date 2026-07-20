@@ -86,6 +86,15 @@ describe('emitHyperframes', () => {
     expect(html).toContain('#00ff88'); // authored laser color survives into the DOM
   });
 
+  it('emits the handwriting overlay as a clip-path wipe over its pre-rendered frame, timed to the spotlight cue', () => {
+    expect(html).toMatch(/<img id="hw-0-e1" class="fx fx-handwriting" src="assets\/frames\/[^"]+\.png"/);
+    expect(html).toContain("clip-path:inset(0 100% 0 0)");
+    const hwStart = ir.scenes[0].handwriting[0].startMs;
+    const spotlightStart = ir.scenes[0].effects[0].startMs;
+    expect(hwStart).toBe(spotlightStart); // cue-triggered: starts with its spotlight
+    expect(html).toContain(`tl.set('#hw-0-e1',{autoAlpha:1},${hwStart / 1000});`);
+  });
+
   it('references vendored GSAP, never a CDN', () => {
     expect(html).toContain('<script src="assets/vendor/gsap.min.js"></script>');
     expect(project.gsapVendorPath).toBe('assets/vendor/gsap.min.js');

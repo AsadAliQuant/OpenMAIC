@@ -25,3 +25,17 @@ export function escapeHtml(value: string): string {
 export function sec(ms: number): number {
   return Number((ms / 1000).toFixed(4));
 }
+
+/**
+ * Directory the collected binary assets live under in the export zip. The
+ * compiler's asset plan uses bare paths (`frames/…`, `audio/…`, `media/…`); the
+ * project places them all under `assets/` (matching the artifact layout and the
+ * vendored GSAP at `assets/vendor/`). The packaging layer writes each plan blob
+ * at this same `assets/<planPath>`, so HTML references and zip entries agree.
+ */
+export const ASSETS_DIR = 'assets';
+
+/** Map a compiler asset-plan path to its zip-relative URL under `assets/`. */
+export function assetUrl(planPath: string): string {
+  return `${ASSETS_DIR}/${planPath}`;
+}

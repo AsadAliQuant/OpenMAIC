@@ -199,6 +199,26 @@ export function planAssets(
       };
     });
 
+    // Handwriting overlays — an isolated snapshot of the element (cursive font
+    // applied, transparent background) the exporter reveals via clip-path.
+    // Every segment gets one, regardless of live `mode`: the exported video
+    // reproduces the write-in as a deterministic wipe rather than a true
+    // per-letter stroke — see `emit-hyperframes/handwriting.ts` for why (a
+    // real Vara.js instance would fetch its font JSON at render time, which
+    // conflicts with the composition's "no network at render time" contract,
+    // and its async readiness has no guaranteed ordering against Hyperframes'
+    // first captured frame). Live playback still strokes `vara`-mode text for
+    // real; this is an export-only simplification.
+    const handwriting = scene.handwriting.map((seg) => {
+      const { path } = planner.plan(
+        `frame:${scene.id}:${seg.elementId}`,
+        'frame',
+        `frames/${sceneSlug}/hw-${sanitizeFilenamePart(seg.elementId)}.png`,
+        true,
+      );
+      return { ...seg, assetRef: path };
+    });
+
     // Video media (play_video targets).
     const videos = scene.videos.map((seg) => {
       const meta = sourceScene ? assetSource.media(seg.elementId, sourceScene) : null;
@@ -245,7 +265,7 @@ export function planAssets(
       return { ...seg, assetId: meta.id, present: true, assetRef: path };
     });
 
-    return { ...scene, base, narration, videos };
+    return { ...scene, base, narration, videos, handwriting };
   });
 
   return { scenes, plan: { entries: planner.entries }, diagnostics };

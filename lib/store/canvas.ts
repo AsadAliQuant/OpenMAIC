@@ -4,6 +4,7 @@ import type { TextAttrs } from '@/lib/prosemirror/utils';
 import { defaultRichTextAttrs } from '@/lib/prosemirror/utils';
 import type { TextFormatPainter, ShapeFormatPainter, CreatingElement } from '@/lib/types/edit';
 import type { PercentageGeometry } from '@/lib/types/action';
+import type { HandwritingPlan, HandwritingPlanEntry } from '@/lib/choreography';
 
 /**
  * Spotlight options
@@ -71,6 +72,18 @@ interface CanvasState {
   // Keyed by actionId (not a positional index) so reorder/delete while armed
   // can't rebind the wrong action.
   pickTarget: { sceneId: string; actionId: string; cueType: string } | null;
+
+  // ===== Handwriting reveal state (playback only) =====
+  // Populated by `ActionEngine.beginSceneHandwriting` at the start of a slide
+  // scene during playback; `null` (no plan) means text renders statically as
+  // always — this is what keeps the editor canvas (which never populates
+  // this) unaffected. Deliberately NOT cleared by `clearAllEffects`/its 5s
+  // auto-clear timer: a spotlight's fire-and-forget lifetime must not erase
+  // text that has already been written in.
+  handwritingSceneId: string | null; // Scene the current plan belongs to
+  handwritingPlan: Record<string, HandwritingPlanEntry> | null; // elementId -> plan entry
+  handwritingSceneStartedAt: number; // performance.now() when the scene's handwriting began
+  handwritingStarted: Record<string, number>; // elementId -> performance.now() write started
 
   // ===== Canvas viewport state =====
   canvasScale: number; // Canvas actual zoom scale
@@ -183,6 +196,9 @@ interface CanvasState {
   setZoom: (elementId: string, scale: number) => void;
   clearZoom: () => void;
   clearAllEffects: () => void;
+  beginHandwritingScene: (sceneId: string, plan: HandwritingPlan) => void;
+  startHandwriting: (elementId: string) => void;
+  clearHandwriting: () => void;
 
   // ----- Batch operations -----
   resetCanvasState: () => void; // Reset Canvas state (used when switching scenes)
@@ -251,6 +267,12 @@ const initialState = {
   laserOptions: null,
   zoomTarget: null,
   pickTarget: null,
+
+  // Handwriting reveal
+  handwritingSceneId: null,
+  handwritingPlan: null,
+  handwritingSceneStartedAt: 0,
+  handwritingStarted: {},
 };
 
 // ==================== Store Implementation ====================
@@ -463,6 +485,33 @@ const useCanvasStoreBase = create<CanvasState>((set, get) => ({
       // Note: playingVideoElementId intentionally NOT cleared here.
       // Video playback has its own lifecycle (playVideo/pauseVideo/onEnded)
       // and must not be interrupted by visual effect auto-clear timers.
+      // handwriting* intentionally NOT cleared here either — see
+      // `clearHandwriting` for the (separate) reset path.
+    });
+  },
+
+  beginHandwritingScene: (sceneId, plan) => {
+    set({
+      handwritingSceneId: sceneId,
+      handwritingPlan: plan.byElementId,
+      handwritingSceneStartedAt: performance.now(),
+      handwritingStarted: {},
+    });
+  },
+
+  startHandwriting: (elementId) => {
+    if (get().handwritingStarted[elementId] !== undefined) return;
+    set((state) => ({
+      handwritingStarted: { ...state.handwritingStarted, [elementId]: performance.now() },
+    }));
+  },
+
+  clearHandwriting: () => {
+    set({
+      handwritingSceneId: null,
+      handwritingPlan: null,
+      handwritingSceneStartedAt: 0,
+      handwritingStarted: {},
     });
   },
 

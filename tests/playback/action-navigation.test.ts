@@ -58,6 +58,8 @@ function createActionEngine() {
       }),
       clearEffects: vi.fn(),
       resetPlaybackVisualState: vi.fn(),
+      beginSceneHandwriting: vi.fn(),
+      clearHandwriting: vi.fn(),
     } as unknown as ActionEngine,
   };
 }

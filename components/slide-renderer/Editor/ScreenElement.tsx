@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 
 import { BaseImageElement } from '../components/element/ImageElement/BaseImageElement';
 import { BaseTextElement } from '../components/element/TextElement/BaseTextElement';
+import { HandwritingTextElement } from '../components/element/TextElement/HandwritingTextElement';
 import { BaseShapeElement } from '../components/element/ShapeElement/BaseShapeElement';
 import { BaseLineElement } from '../components/element/LineElement/BaseLineElement';
 import { BaseChartElement } from '../components/element/ChartElement/BaseChartElement';
@@ -14,6 +15,7 @@ import { BaseVideoElement } from '../components/element/VideoElement/BaseVideoEl
 import { BaseCodeElement } from '../components/element/CodeElement/BaseCodeElement';
 import { useSceneSelector } from '@/lib/contexts/scene-context';
 import type { SceneContent } from '@/lib/types/stage';
+import { useCanvasStore } from '@/lib/store';
 
 interface ScreenElementProps {
   readonly elementInfo: PPTElement;
@@ -22,6 +24,10 @@ interface ScreenElementProps {
 }
 
 export function ScreenElement({ elementInfo, elementIndex, animate }: ScreenElementProps) {
+  // Only populated during playback (`ActionEngine.beginSceneHandwriting`);
+  // the editor canvas never sets this, so it never affects editing.
+  const handwritingEntry = useCanvasStore.use.handwritingPlan()?.[elementInfo.id];
+
   const CurrentElementComponent = useMemo(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- element components have varying prop signatures
     const elementTypeMap: Record<string, any> = {
@@ -51,6 +57,22 @@ export function ScreenElement({ elementInfo, elementIndex, animate }: ScreenElem
       };
     },
   );
+
+  if (elementInfo.type === ElementTypes.TEXT && handwritingEntry) {
+    return (
+      <div
+        className="screen-element"
+        id={`screen-element-${elementInfo.id}`}
+        style={{
+          zIndex: elementIndex,
+          color: theme.fontColor,
+          fontFamily: theme.fontName,
+        }}
+      >
+        <HandwritingTextElement elementInfo={elementInfo} entry={handwritingEntry} />
+      </div>
+    );
+  }
 
   if (!CurrentElementComponent) {
     return null;

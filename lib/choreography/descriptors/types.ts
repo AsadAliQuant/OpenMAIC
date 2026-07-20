@@ -165,7 +165,7 @@ export const AnimationDescriptorSchema = z.object({
   id: z.string(),
   /** Numeric version, bumped on any behavioral change. */
   version: z.number(),
-  effect: z.enum(['spotlight', 'laser']),
+  effect: z.enum(['spotlight', 'laser', 'handwriting']),
   /** Default parameter values; consumers may override (e.g. dimness, color). */
   params: StaticPropsSchema.optional(),
   /** Stacking order the effect renders at. */

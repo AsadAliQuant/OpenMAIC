@@ -4,7 +4,9 @@ import {
   getElementPercentageGeometry,
   applyGeometry,
   resolveEffectGeometry,
+  resolveHandwritingPlacement,
   type EffectSegment,
+  type HandwritingSegment,
   type VideoTimelineScene,
 } from '@/lib/video-export';
 import { el, slide, spotlight } from './helpers';
@@ -39,6 +41,23 @@ const effect = (elementId: string): EffectSegment => ({
   elementId,
   geometry: null,
   params: { dimness: 0.5 },
+  degraded: false,
+});
+
+const handwriting = (elementId: string): HandwritingSegment => ({
+  actionId: 'sp',
+  elementId,
+  mode: 'vara',
+  trigger: 'cue',
+  descriptorId: 'handwriting.v1',
+  startMs: 0,
+  durationMs: 1200,
+  lines: ['hi'],
+  geometry: null,
+  rotate: 0,
+  fontSizePx: 20,
+  color: '#333333',
+  cursiveFontFamily: null,
   degraded: false,
 });
 
@@ -82,6 +101,40 @@ describe('applyGeometry — across scenes', () => {
       expect.objectContaining({ code: 'unresolved-element', sceneId: 's1', actionId: 'sp2' }),
     ]);
   });
+
+  it('resolves handwriting segment placement too, with the same degrade-on-miss contract', () => {
+    const source = [
+      slide('s0', [spotlight('sp', 'e1')], {
+        elements: [el('e1', { left: 0, top: 0, width: 100, height: 100, rotate: 15 })],
+      }),
+      slide('s1', [], { elements: [] }),
+    ];
+    const timelineScenes: VideoTimelineScene[] = [
+      { ...baseScene('s0', 0), handwriting: [handwriting('e1')] },
+      { ...baseScene('s1', 1), handwriting: [{ ...handwriting('ghost'), actionId: undefined }] },
+    ];
+
+    const { scenes, diagnostics } = applyGeometry(timelineScenes, source);
+    expect(scenes[0].handwriting[0].geometry).not.toBeNull();
+    expect(scenes[0].handwriting[0].rotate).toBe(15);
+    expect(scenes[0].handwriting[0].degraded).toBe(false);
+    expect(scenes[1].handwriting[0].geometry).toBeNull();
+    expect(scenes[1].handwriting[0].rotate).toBe(0);
+    expect(scenes[1].handwriting[0].degraded).toBe(true);
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'unresolved-element', sceneId: 's1' }),
+    );
+  });
+});
+
+describe('resolveHandwritingPlacement', () => {
+  it('degrades (geometry null, rotate 0) when the element is missing', () => {
+    const { segment, unresolved } = resolveHandwritingPlacement(handwriting('ghost'), []);
+    expect(unresolved).toBe(true);
+    expect(segment.geometry).toBeNull();
+    expect(segment.rotate).toBe(0);
+    expect(segment.degraded).toBe(true);
+  });
 });
 
 function baseScene(id: string, index: number): VideoTimelineScene {
@@ -97,6 +150,7 @@ function baseScene(id: string, index: number): VideoTimelineScene {
     narration: [],
     effects: [],
     videos: [],
+    handwriting: [],
     markers: [],
   };
 }
