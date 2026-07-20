@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import type { PPTElement } from '@openmaic/dsl';
 import {
   estimateSpeechDurationMs,
   EFFECT_AUTO_CLEAR_MS,
   MAX_VIDEO_WAIT_MS,
+  HANDWRITING_STAGGER_MS,
 } from '@/lib/choreography';
 import { buildTimeline, buildTimelineOptions } from '@/lib/video-export';
 import {
@@ -15,6 +17,19 @@ import {
   stubProbe,
   wbDrawText,
 } from './helpers';
+
+/** A text element with real content, so `planSceneHandwriting` can classify it. */
+function textEl(id: string, content: string, box = { left: 0, top: 0, width: 200, height: 60 }) {
+  return {
+    id,
+    type: 'text',
+    ...box,
+    rotate: 0,
+    content,
+    defaultFontName: 'Microsoft YaHei',
+    defaultColor: '#333333',
+  } as unknown as PPTElement;
+}
 
 describe('buildTimeline — narration + subtitles', () => {
   it('uses stored audio durations and derives one subtitle cue per non-empty speech', () => {
@@ -102,6 +117,63 @@ describe('buildTimeline — effects', () => {
     );
     expect(tl.scenes[0].effects[0].params).toMatchObject({ dimness: 0.8 });
     expect(tl.scenes[0].effects[1].params).toMatchObject({ color: '#00ff00' });
+  });
+});
+
+describe('buildTimeline — handwriting', () => {
+  it('times a cue-triggered write to its spotlight, in vara mode for plain Latin text', () => {
+    const scenes = [
+      slide('s', [speech('a', 'x'), spotlight('sp', 'e1'), speech('b', 'y')], {
+        elements: [textEl('e1', 'Hello world')],
+      }),
+    ];
+    const tl = buildTimeline(scenes, buildTimelineOptions(stubProbe({ a: 2000, b: 2000 })));
+    expect(tl.scenes[0].handwriting).toMatchObject([
+      {
+        elementId: 'e1',
+        mode: 'vara',
+        trigger: 'cue',
+        descriptorId: 'handwriting.v1',
+        startMs: tl.scenes[0].effects[0].startMs,
+        lines: ['Hello world'],
+        cursiveFontFamily: null,
+      },
+    ]);
+  });
+
+  it('sequences uncued text elements at slide start, staggered by the previous durations', () => {
+    const scenes = [
+      slide('s', [speech('a', 'x')], {
+        elements: [textEl('e1', 'first'), textEl('e2', 'second')],
+      }),
+    ];
+    const tl = buildTimeline(scenes, buildTimelineOptions(stubProbe({ a: 2000 })));
+    const [first, second] = tl.scenes[0].handwriting;
+    expect(first).toMatchObject({ elementId: 'e1', trigger: 'slide-start', startMs: 0 });
+    expect(second).toMatchObject({
+      elementId: 'e2',
+      trigger: 'slide-start',
+      startMs: first.durationMs + HANDWRITING_STAGGER_MS,
+    });
+  });
+
+  it('routes CJK content to wipe mode with the LXGW WenKai cursive fallback', () => {
+    const scenes = [slide('s', [speech('a', 'x')], { elements: [textEl('e1', '你好世界')] })];
+    const tl = buildTimeline(scenes, buildTimelineOptions(stubProbe({ a: 2000 })));
+    expect(tl.scenes[0].handwriting[0]).toMatchObject({
+      mode: 'wipe',
+      cursiveFontFamily: 'LXGW WenKai',
+      lines: [],
+    });
+  });
+
+  it('non-text elements never get a handwriting segment', () => {
+    const shape = { id: 'sh1', type: 'shape', left: 0, top: 0, width: 10, height: 10 };
+    const scenes = [
+      slide('s', [speech('a', 'x')], { elements: [shape as unknown as PPTElement] }),
+    ];
+    const tl = buildTimeline(scenes, buildTimelineOptions(stubProbe({ a: 2000 })));
+    expect(tl.scenes[0].handwriting).toEqual([]);
   });
 });
 

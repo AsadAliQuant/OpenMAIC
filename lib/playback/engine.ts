@@ -321,6 +321,7 @@ export class PlaybackEngine {
     this.audioPlayer.stop();
     this.cancelBrowserTTS();
     this.actionEngine.clearEffects();
+    this.actionEngine.clearHandwriting();
     if (this.triggerDelayTimer) {
       clearTimeout(this.triggerDelayTimer);
       this.triggerDelayTimer = null;
@@ -544,6 +545,7 @@ export class PlaybackEngine {
     if (this.actionIndex === 0 && this.sceneIndex < this.scenes.length) {
       const scene = this.scenes[this.sceneIndex];
       this.actionEngine.clearEffects();
+      this.actionEngine.beginSceneHandwriting(scene);
       this.callbacks.onSceneChange?.(scene.id);
       this.callbacks.onSpeakerChange?.('teacher');
     }
@@ -554,6 +556,7 @@ export class PlaybackEngine {
       // All scenes complete
       this.invalidatePlaybackGeneration();
       this.actionEngine.clearEffects();
+      this.actionEngine.clearHandwriting();
       this.setMode('idle');
       this.callbacks.onComplete?.();
       return;

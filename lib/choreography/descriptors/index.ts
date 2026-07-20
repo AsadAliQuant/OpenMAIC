@@ -5,15 +5,18 @@
 import type { AnimationDescriptor } from './types';
 import { spotlightV1 } from './spotlight';
 import { laserV1 } from './laser';
+import { handwritingV1 } from './handwriting';
 
 export * from './types';
 export { spotlightV1 } from './spotlight';
 export { laserV1 } from './laser';
+export { handwritingV1 } from './handwriting';
 
 /** All shipped descriptors, keyed by their versioned id. */
 export const DESCRIPTORS: Record<string, AnimationDescriptor> = {
   'spotlight.v1': spotlightV1,
   'laser.v1': laserV1,
+  'handwriting.v1': handwritingV1,
 };
 
 /** Look up a descriptor by its versioned id (e.g. 'spotlight.v1'). */

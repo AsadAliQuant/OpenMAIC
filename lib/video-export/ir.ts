@@ -32,7 +32,7 @@ import { SCENE_TYPES } from '@openmaic/dsl';
 export const VIDEO_TIMELINE_SCHEMA = 'openmaic.videoTimeline';
 
 /** IR/manifest version. Bump on any breaking shape change. */
-export const VIDEO_TIMELINE_VERSION = 1;
+export const VIDEO_TIMELINE_VERSION = 2;
 
 /** Compiler identity stamped into the manifest for provenance. */
 export const VIDEO_TIMELINE_COMPILER = 'openmaic-video-timeline';
@@ -149,6 +149,48 @@ export const EffectSegmentSchema = z.object({
   degraded: z.boolean(),
 });
 
+/** How a handwriting segment's text is revealed — a real pen stroke, or a fallback clip-path wipe. */
+export const HandwritingModeSchema = z.enum(['vara', 'wipe']);
+
+/** What starts the write-in: a spotlight cue, or the scene's sequential slide-start queue. */
+export const HandwritingTriggerSchema = z.enum(['cue', 'slide-start']);
+
+/**
+ * Handwriting reveal segment — one text element's "tutor writes on the slide"
+ * write-in (`lib/choreography/handwriting.ts`'s `planSceneHandwriting`, shared
+ * with the live runtime so both agree on timing/mode/content). `mode: 'vara'`
+ * strokes `lines` with the vendored Vara font at render time (no asset needed);
+ * `mode: 'wipe'` reveals a pre-rendered `assetRef` frame (the element snapshotted
+ * in isolation, cursive font applied) via an animated clip-path.
+ *
+ * The base slide-snapshot frame excludes every element that has a handwriting
+ * segment — see the collector — so the segment (stroke or wipe overlay) is the
+ * only place that element's text ever renders.
+ */
+export const HandwritingSegmentSchema = z.object({
+  actionId: z.string().optional(),
+  elementId: z.string(),
+  mode: HandwritingModeSchema,
+  trigger: HandwritingTriggerSchema,
+  /** Versioned descriptor id, e.g. `handwriting.v1`, resolved against `DESCRIPTORS`. */
+  descriptorId: z.string(),
+  startMs: z.number(),
+  durationMs: z.number(),
+  /** `vara` mode: plain-text lines stroked in order. Empty for `wipe` mode. */
+  lines: z.array(z.string()),
+  geometry: PercentageGeometrySchema.nullable(),
+  /** Element rotation in degrees; 0 when unresolved. */
+  rotate: z.number(),
+  fontSizePx: z.number(),
+  color: z.string(),
+  /** `wipe` mode only: the cursive font override, or null to keep authored styling. */
+  cursiveFontFamily: z.string().nullable(),
+  /** `wipe` mode only: the isolated-element overlay frame's asset-plan path. */
+  assetRef: z.string().optional(),
+  /** True when the target element's geometry could not be resolved. */
+  degraded: z.boolean(),
+});
+
 /**
  * Video-playback segment (`play_video`). Carries the target element's placement
  * (`geometry` in 0–100 space + `rotate` in degrees) so an IR-only emitter can
@@ -215,6 +257,7 @@ export const VideoTimelineSceneSchema = z.object({
   narration: z.array(NarrationSegmentSchema),
   effects: z.array(EffectSegmentSchema),
   videos: z.array(VideoSegmentSchema),
+  handwriting: z.array(HandwritingSegmentSchema),
   markers: z.array(MarkerSchema),
 });
 
@@ -295,6 +338,9 @@ export type DurationSource = z.infer<typeof DurationSourceSchema>;
 export type BaseSegment = z.infer<typeof BaseSegmentSchema>;
 export type NarrationSegment = z.infer<typeof NarrationSegmentSchema>;
 export type EffectSegment = z.infer<typeof EffectSegmentSchema>;
+export type HandwritingMode = z.infer<typeof HandwritingModeSchema>;
+export type HandwritingTrigger = z.infer<typeof HandwritingTriggerSchema>;
+export type HandwritingSegment = z.infer<typeof HandwritingSegmentSchema>;
 export type VideoSegment = z.infer<typeof VideoSegmentSchema>;
 export type Marker = z.infer<typeof MarkerSchema>;
 export type VideoTimelineScene = z.infer<typeof VideoTimelineSceneSchema>;

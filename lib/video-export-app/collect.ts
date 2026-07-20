@@ -21,8 +21,9 @@
  * DOM — outside the `lib/video-export/**` purity boundary by design.
  */
 import { slideToPng } from '@openmaic/renderer/snapshot';
-import type { Slide } from '@openmaic/dsl';
-import type { VideoTimeline } from '@/lib/video-export';
+import { isTextElement, type Slide } from '@openmaic/dsl';
+import { cursiveFallbackFor, stripInlineFontFamilies } from '@/lib/choreography';
+import type { HandwritingSegment, VideoTimeline } from '@/lib/video-export';
 import type { Scene, SlideContent } from '@/lib/types/stage';
 import { isMediaPlaceholder } from '@/lib/store/media-generation';
 import type { MediaFileRecord } from '@/lib/utils/database';
@@ -44,9 +45,16 @@ export interface CollectResult {
 
 type SnapshotMediaElement = { type: string; src?: string; mediaRef?: string; poster?: string };
 
-/** `frame:<sceneId>` → `<sceneId>`. */
-function frameSceneId(assetId: string): string | null {
-  return assetId.startsWith('frame:') ? assetId.slice('frame:'.length) : null;
+/**
+ * Parse a `frame` asset id: `frame:<sceneId>` (the scene's base snapshot) or
+ * `frame:<sceneId>:<elementId>` (a handwriting element's isolated overlay —
+ * see the `assets` pass). `elementId` is undefined for the base-frame form.
+ */
+function parseFrameAssetId(assetId: string): { sceneId: string; elementId?: string } | null {
+  if (!assetId.startsWith('frame:')) return null;
+  const rest = assetId.slice('frame:'.length);
+  const sep = rest.indexOf(':');
+  return sep === -1 ? { sceneId: rest } : { sceneId: rest.slice(0, sep), elementId: rest.slice(sep + 1) };
 }
 
 function blobWithType(blob: Blob, mimeType: string): Blob {
@@ -136,24 +144,71 @@ async function resolveGeneratedMedia(
   return { slide, revoke: () => objectUrls.forEach((url) => URL.revokeObjectURL(url)) };
 }
 
-/** Render one slide scene to a PNG frame blob, releasing objectURLs immediately after. */
+/** Snapshot a slide to a PNG blob at the given background, releasing objectURLs immediately after. */
+async function renderSlidePng(
+  slide: Slide,
+  mediaByElementId: Map<string, MediaFileRecord>,
+  width: number,
+  backgroundColor: string,
+): Promise<Blob> {
+  const { slide: resolved, revoke } = await resolveGeneratedMedia(slide, mediaByElementId);
+  try {
+    const output = await slideToPng(resolved, { width, pixelRatio: 1, backgroundColor, format: 'blob' });
+    return output instanceof Blob ? output : await fetch(output).then((r) => r.blob());
+  } finally {
+    revoke();
+  }
+}
+
+/** Render one slide scene's base frame, opaque white background. */
 async function renderFrame(
   slide: Slide,
   mediaByElementId: Map<string, MediaFileRecord>,
   width: number,
 ): Promise<Blob> {
-  const { slide: resolved, revoke } = await resolveGeneratedMedia(slide, mediaByElementId);
-  try {
-    const output = await slideToPng(resolved, {
-      width,
-      pixelRatio: 1,
-      backgroundColor: '#ffffff',
-      format: 'blob',
-    });
-    return output instanceof Blob ? output : await fetch(output).then((r) => r.blob());
-  } finally {
-    revoke();
-  }
+  return renderSlidePng(slide, mediaByElementId, width, '#ffffff');
+}
+
+/**
+ * Drop every element with a handwriting segment from the base frame — the
+ * corresponding overlay (live stroke/wipe, or this scene's own isolated
+ * snapshot in export) is the only place that element's text renders; the base
+ * frame must not also paint it statically underneath.
+ */
+function withoutHandwritingElements(slide: Slide, elementIds: ReadonlySet<string>): Slide {
+  if (elementIds.size === 0) return slide;
+  return { ...slide, elements: slide.elements.filter((el) => !elementIds.has(el.id)) };
+}
+
+/**
+ * Isolate one handwriting-managed text element onto an otherwise-empty slide
+ * (no background, no other elements) with a cursive font substituted where
+ * `cursiveFallbackFor` allows it — the export's uniform, deterministic
+ * stand-in for the live "written in cursive" look (see
+ * `emit-hyperframes/handwriting.ts` for why the export can't run a live Vara
+ * stroke). Returns null if the element is gone or not text.
+ */
+function isolateHandwritingElement(slide: Slide, elementId: string): Slide | null {
+  const element = slide.elements.find((el) => el.id === elementId);
+  if (!element || !isTextElement(element)) return null;
+  const content = element.content ?? '';
+  const cursiveFontFamily = cursiveFallbackFor(content);
+  const styled = cursiveFontFamily
+    ? { ...element, content: stripInlineFontFamilies(content), defaultFontName: cursiveFontFamily }
+    : element;
+  return { ...slide, elements: [styled], background: undefined };
+}
+
+/** Render a handwriting element's isolated overlay frame (transparent background). Null if unrenderable. */
+async function renderHandwritingOverlay(
+  slide: Slide,
+  elementId: string,
+  mediaByElementId: Map<string, MediaFileRecord>,
+  width: number,
+): Promise<Blob | null> {
+  const isolated = isolateHandwritingElement(slide, elementId);
+  if (!isolated) return null;
+  return renderSlidePng(isolated, mediaByElementId, width, 'transparent');
 }
 
 /**
@@ -175,6 +230,9 @@ export async function collectVideoAssets(
   const sceneById = new Map(scenes.map((s) => [s.id, s]));
   const mediaById = new Map<string, MediaFileRecord>();
   for (const record of records.mediaByElementId.values()) mediaById.set(record.id, record);
+  const handwritingBySceneId = new Map<string, HandwritingSegment[]>(
+    ir.scenes.map((s) => [s.id, s.handwriting]),
+  );
 
   // Only the owning entries carry bytes; dedup entries reuse the owner's path.
   const owners = ir.assets.entries.filter((e) => e.present && !e.dedupOf);
@@ -187,11 +245,26 @@ export async function collectVideoAssets(
     }
     try {
       if (entry.kind === 'frame') {
-        const sceneId = frameSceneId(entry.assetId);
-        const scene = sceneId ? sceneById.get(sceneId) : undefined;
+        const parsed = parseFrameAssetId(entry.assetId);
+        const scene = parsed ? sceneById.get(parsed.sceneId) : undefined;
         if (scene && scene.content.type === 'slide') {
           const slide = (scene.content as SlideContent).canvas;
-          blobs.set(entry.path, await renderFrame(slide, records.mediaByElementId, width));
+          if (parsed?.elementId) {
+            const overlay = await renderHandwritingOverlay(
+              slide,
+              parsed.elementId,
+              records.mediaByElementId,
+              width,
+            );
+            if (overlay) blobs.set(entry.path, overlay);
+            else missing.push(entry.path);
+          } else {
+            const handwritingIds = new Set(
+              (handwritingBySceneId.get(scene.id) ?? []).map((h) => h.elementId),
+            );
+            const base = withoutHandwritingElements(slide, handwritingIds);
+            blobs.set(entry.path, await renderFrame(base, records.mediaByElementId, width));
+          }
         } else {
           missing.push(entry.path);
         }

@@ -80,7 +80,7 @@ export function wbClearMs(elementCount: number): number {
  * Ideographs (+ Ext-A), Hiragana, Katakana, Hangul Syllables. Verbatim from the
  * regex in `lib/playback/engine.ts`'s `scheduleReadingTimer`.
  */
-const CJK_REGEX = /[一-鿿㐀-䶿぀-ゟ゠-ヿ가-힯]/g;
+export const CJK_REGEX = /[一-鿿㐀-䶿぀-ゟ゠-ヿ가-힯]/g;
 
 /** Text is treated as CJK when this fraction of its characters are CJK. */
 const CJK_RATIO_THRESHOLD = 0.3;
@@ -118,4 +118,41 @@ export function estimateSpeechDurationMs(text: string, opts?: SpeechEstimateOpti
     ? Math.max(MIN_READING_MS, text.length * CJK_MS_PER_CHAR)
     : Math.max(MIN_READING_MS, text.split(/\s+/).filter(Boolean).length * NON_CJK_MS_PER_WORD);
   return rawMs / speed;
+}
+
+// ==================== Handwriting reveal timing ====================
+//
+// Shared by the live "tutor writes on the slide" reveal (app runtime) and its
+// video-export reproduction. A cue-triggered write must finish inside the
+// spotlight window that triggers it, so `HANDWRITING_MAX_MS` is kept strictly
+// below `EFFECT_AUTO_CLEAR_MS` — this is a correctness invariant, not a taste
+// choice: a write that outlived its spotlight's auto-clear would visually
+// "pop" the rest of the text in in the app but not in an export built on the
+// same clamp, or vice versa.
+
+/** Pace of the handwriting reveal: ms of write time per character. */
+export const HANDWRITING_MS_PER_CHAR = 90;
+
+/** Floor on a single element's write duration (ms), regardless of length. */
+export const HANDWRITING_MIN_MS = 1200;
+
+/**
+ * Ceiling on a single element's write duration (ms). Must stay strictly below
+ * `EFFECT_AUTO_CLEAR_MS` so a cue-triggered write always completes while its
+ * triggering spotlight is still up.
+ */
+export const HANDWRITING_MAX_MS = 4500;
+
+/** Gap (ms) between consecutive slide-start writes in the sequential queue. */
+export const HANDWRITING_STAGGER_MS = 250;
+
+/**
+ * Estimate how long a handwriting write-in should take, proportional to
+ * text length and clamped to `[HANDWRITING_MIN_MS, HANDWRITING_MAX_MS]`.
+ */
+export function estimateHandwritingDurationMs(text: string): number {
+  return Math.min(
+    HANDWRITING_MAX_MS,
+    Math.max(HANDWRITING_MIN_MS, text.length * HANDWRITING_MS_PER_CHAR),
+  );
 }

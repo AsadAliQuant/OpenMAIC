@@ -9,6 +9,9 @@
  *   estimate ({@link estimateSpeechDurationMs}).
  * - **Cursor** — {@link resolvePlaybackCursor}, the scene/action walk.
  * - **Timeline** — {@link resolveActionTimeline}, the index→time expansion.
+ * - **Handwriting** — {@link planSceneHandwriting}, which text elements write
+ *   in on a spotlight cue vs. sequentially at slide start, and how (stroked
+ *   cursive vs. wipe reveal).
  * - **Descriptors** — versioned, declarative animation descriptors
  *   ({@link DESCRIPTORS}, e.g. `spotlight.v1`) + their zod schema.
  *
@@ -22,4 +25,5 @@
 export * from './timing';
 export * from './cursor';
 export * from './timeline';
+export * from './handwriting';
 export * from './descriptors/index';

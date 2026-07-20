@@ -5,9 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * real `@openmaic/renderer/snapshot` needs a build + DOM). `slideToPng` records
  * the slide it was handed so tests can assert which media the frame captured.
  */
-const capturedSlides: Array<{ elements: Array<Record<string, unknown>> }> = [];
+type CapturedSlide = { elements: Array<Record<string, unknown>>; background?: unknown };
+const capturedSlides: CapturedSlide[] = [];
 vi.mock('@openmaic/renderer/snapshot', () => ({
-  slideToPng: vi.fn(async (slide: { elements: Array<Record<string, unknown>> }) => {
+  slideToPng: vi.fn(async (slide: CapturedSlide) => {
     capturedSlides.push(structuredClone(slide));
     return new Blob(['png'], { type: 'image/png' });
   }),
@@ -19,9 +20,9 @@ import type { VideoTimelineRecords } from '@/lib/video-export-app/timeline-deps'
 import type { Scene } from '@/lib/types/stage';
 import type { AudioFileRecord, MediaFileRecord } from '@/lib/utils/database';
 
-/** Minimal IR carrying only an asset plan — collectVideoAssets reads `ir.assets.entries`. */
+/** Minimal IR carrying only an asset plan — collectVideoAssets reads `ir.assets.entries` (and `ir.scenes[].handwriting`, empty here). */
 function irWith(entries: VideoTimeline['assets']['entries']): VideoTimeline {
-  return { assets: { entries } } as unknown as VideoTimeline;
+  return { assets: { entries }, scenes: [] } as unknown as VideoTimeline;
 }
 
 function audioRecord(over: Partial<AudioFileRecord>): AudioFileRecord {
@@ -260,5 +261,90 @@ describe('collectVideoAssets — frame base restores evicted generated media', (
     );
 
     expect(capturedSlides[0].elements[0].src).toBe('');
+  });
+});
+
+describe('collectVideoAssets — handwriting overlays', () => {
+  /** IR carrying an asset plan AND the handwriting segment(s) collect.ts needs to know which elements to strip/isolate. */
+  function irWithHandwriting(
+    entries: VideoTimeline['assets']['entries'],
+    handwriting: Array<{ elementId: string }>,
+  ): VideoTimeline {
+    return {
+      assets: { entries },
+      scenes: [{ id: 's1', handwriting }],
+    } as unknown as VideoTimeline;
+  }
+
+  const baseFrameEntry = {
+    assetId: 'frame:s1',
+    kind: 'frame' as const,
+    path: 'frames/s1.png',
+    present: true,
+  };
+  const overlayEntry = {
+    assetId: 'frame:s1:e1',
+    kind: 'frame' as const,
+    path: 'frames/s1/hw-e1.png',
+    present: true,
+  };
+
+  function textEl(id: string, content: string) {
+    return { id, type: 'text', left: 0, top: 0, width: 100, height: 40, rotate: 0, content, defaultColor: '#333' };
+  }
+
+  /** A slide scene with two text elements. */
+  function twoElementScene(): Scene {
+    return {
+      id: 's1',
+      content: {
+        type: 'slide',
+        canvas: { elements: [textEl('e1', 'Hello'), textEl('e2', 'World')] },
+      },
+    } as unknown as Scene;
+  }
+
+  it('strips handwriting-managed elements from the base frame', async () => {
+    stubObjectUrls();
+
+    await collectVideoAssets(
+      irWithHandwriting([baseFrameEntry], [{ elementId: 'e1' }]),
+      [twoElementScene()],
+      records(),
+    );
+
+    expect(capturedSlides[0].elements.map((e) => e.id)).toEqual(['e2']);
+  });
+
+  it('renders an isolated, transparent overlay for a handwriting element, with a cursive font substituted', async () => {
+    stubObjectUrls();
+
+    const { blobs, missing } = await collectVideoAssets(
+      irWithHandwriting([overlayEntry], [{ elementId: 'e1' }]),
+      [twoElementScene()],
+      records(),
+    );
+
+    expect(blobs.has('frames/s1/hw-e1.png')).toBe(true);
+    expect(missing).toHaveLength(0);
+    expect(capturedSlides[0].elements).toHaveLength(1);
+    expect(capturedSlides[0].elements[0].id).toBe('e1');
+    expect(capturedSlides[0].elements[0].defaultFontName).toBe('Caveat');
+    expect(capturedSlides[0].background).toBeUndefined();
+  });
+
+  it('reports missing for an overlay whose element is gone', async () => {
+    stubObjectUrls();
+    // overlayEntry targets element "e1"; this scene has only "e2".
+    const scene = slideScene(textEl('e2', 'World'));
+
+    const { blobs, missing } = await collectVideoAssets(
+      irWithHandwriting([overlayEntry], [{ elementId: 'e1' }]),
+      [scene],
+      records(),
+    );
+
+    expect(blobs.has('frames/s1/hw-e1.png')).toBe(false);
+    expect(missing).toEqual(['frames/s1/hw-e1.png']);
   });
 });

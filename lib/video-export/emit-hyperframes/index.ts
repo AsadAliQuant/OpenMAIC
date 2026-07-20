@@ -25,7 +25,10 @@ import type { VideoTimeline, VideoTimelineScene } from '../ir';
 import { emitManifestJson } from '../passes/emit';
 import { toSrt, toVtt } from '../subtitles';
 import { EASE_DEFS, emitEffect } from './effects';
-import { escapeHtml, sec } from './format';
+import { emitHandwriting } from './handwriting';
+import { escapeHtml, sec, assetUrl } from './format';
+
+export { ASSETS_DIR, assetUrl } from './format';
 
 /** A file in the emitted project: a relative path and its text content. */
 export interface EmittedFile {
@@ -59,20 +62,6 @@ export interface EmittedProject {
 const DEFAULT_WIDTH = 1920;
 const DEFAULT_GSAP_PATH = 'assets/vendor/gsap.min.js';
 const DEFAULT_MANIFEST = 'openmaic-video-manifest.json';
-
-/**
- * Directory the collected binary assets live under in the export zip. The
- * compiler's asset plan uses bare paths (`frames/…`, `audio/…`, `media/…`); the
- * project places them all under `assets/` (matching the artifact layout and the
- * vendored GSAP at `assets/vendor/`). The packaging layer writes each plan blob
- * at this same `assets/<planPath>`, so HTML references and zip entries agree.
- */
-export const ASSETS_DIR = 'assets';
-
-/** Map a compiler asset-plan path to its zip-relative URL under `assets/`. */
-export function assetUrl(planPath: string): string {
-  return `${ASSETS_DIR}/${planPath}`;
-}
 
 /** The base layer for one scene: a slide-snapshot `<img>` clip, or a placeholder card. */
 function renderBase(scene: VideoTimelineScene): string {
@@ -189,6 +178,15 @@ export function emitHyperframes(
     sceneHtml.push(renderBase(scene));
     sceneHtml.push(...renderVideo(scene));
     sceneHtml.push(...renderNarration(scene));
+
+    // Handwriting overlays first (zIndex 10), so they land under spotlight/laser
+    // (100/101) in source order — a write can be legitimately spotlit as it plays.
+    for (const hw of scene.handwriting) {
+      const id = `hw-${scene.index}-${hw.elementId}`;
+      const emitted = emitHandwriting(hw, id);
+      if (emitted.html) effectHtml.push(emitted.html);
+      statements.push(...emitted.statements);
+    }
 
     for (const effect of scene.effects) {
       const id = `fx-${scene.index}-${effect.actionIndex}`;

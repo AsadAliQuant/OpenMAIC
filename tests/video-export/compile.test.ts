@@ -36,7 +36,7 @@ describe('compileVideoTimeline — end-to-end golden', () => {
   it('stamps the envelope + config', () => {
     expect(ir).toMatchObject({
       schema: 'openmaic.videoTimeline',
-      version: 1,
+      version: 2,
       compiler: 'openmaic-video-timeline',
       stage: { id: 'stg', name: 'Demo' },
       config: { playbackSpeed: 1, ttsEnabled: true, whiteboardInitiallyOpen: false },
@@ -60,6 +60,19 @@ describe('compileVideoTimeline — end-to-end golden', () => {
     expect(s0.effects[0].geometry).not.toBeNull();
   });
 
+  it('gives the spotlit text element a cue-triggered handwriting segment, timed to its spotlight', () => {
+    const s0 = ir.scenes[0];
+    expect(s0.handwriting).toHaveLength(1);
+    expect(s0.handwriting[0]).toMatchObject({
+      elementId: 'e1',
+      trigger: 'cue',
+      descriptorId: 'handwriting.v1',
+      startMs: s0.effects[0].startMs,
+      degraded: false,
+    });
+    expect(s0.handwriting[0].geometry).not.toBeNull();
+  });
+
   it('represents the quiz scene as unsupported (placeholder base + marker + diagnostic), never dropped', () => {
     const q0 = ir.scenes[1];
     expect(q0).toMatchObject({ index: 1, type: 'quiz', supported: false, startMs: 5000 });
@@ -81,11 +94,12 @@ describe('compileVideoTimeline — end-to-end golden', () => {
     ]);
   });
 
-  it('plans deduped assets (a frame + one entry per distinct audio clip)', () => {
+  it('plans deduped assets (a frame + one entry per distinct audio clip + the handwriting overlay)', () => {
     expect(ir.assets.entries.map((e) => e.path)).toEqual([
       'frames/001-intro.png',
       'audio/001-intro/speech-001.mp3',
       'audio/001-intro/speech-002.mp3',
+      'frames/001-intro/hw-e1.png',
       'audio/002-q0/speech-001.mp3',
     ]);
   });

@@ -21,9 +21,13 @@ import type {
   SpotlightAction,
   LaserAction,
 } from '@openmaic/dsl';
+import { isTextElement } from '@openmaic/dsl';
 import {
   resolveActionTimeline,
   getDescriptor,
+  planSceneHandwriting,
+  extractDominantFontSizePx,
+  extractDominantColor,
   EMPTY_SCENE_DWELL,
   IMPLICIT_WB_OPEN,
   MAX_VIDEO_WAIT_MS,
@@ -34,6 +38,7 @@ import type { CompilerScene } from '../deps';
 import type {
   Diagnostic,
   EffectSegment,
+  HandwritingSegment,
   Marker,
   NarrationSegment,
   SubtitleCue,
@@ -85,6 +90,54 @@ function emptyBuckets(): SceneBuckets {
   return { narration: [], effects: [], videos: [], markers: [] };
 }
 
+/**
+ * Fold `planSceneHandwriting` (shared with the live runtime — same source
+ * elements/actions, same rules) into `HandwritingSegment`s laid on the scene's
+ * wall clock. A `cue` entry's `startMs` is its triggering spotlight's — the
+ * first `spotlight` effect segment already computed for that element in this
+ * scene, matching `ActionEngine.executeSpotlight`'s "first cue starts the
+ * write" rule; a `slide-start` entry's is `sceneStartMs + delayMs`. Geometry
+ * and the wipe-mode overlay `assetRef` are left for later passes.
+ */
+function buildHandwritingSegments(
+  scene: CompilerScene,
+  effects: readonly EffectSegment[],
+  sceneStartMs: number,
+): HandwritingSegment[] {
+  const elements = scene.content?.canvas?.elements ?? [];
+  const plan = planSceneHandwriting(elements, scene.actions ?? []);
+  if (plan.entries.length === 0) return [];
+
+  const elementById = new Map(elements.map((el) => [el.id, el]));
+
+  return plan.entries.map((entry) => {
+    const element = elementById.get(entry.elementId);
+    const content = (element && isTextElement(element) ? element.content : '') || '';
+    const defaultColor =
+      (element && isTextElement(element) ? element.defaultColor : '#333333') || '#333333';
+    const startMs =
+      entry.trigger === 'cue'
+        ? (effects.find((e) => e.type === 'spotlight' && e.elementId === entry.elementId)
+            ?.startMs ?? sceneStartMs)
+        : sceneStartMs + entry.delayMs;
+    return {
+      elementId: entry.elementId,
+      mode: entry.mode,
+      trigger: entry.trigger,
+      descriptorId: 'handwriting.v1',
+      startMs,
+      durationMs: entry.durationMs,
+      lines: entry.lines,
+      geometry: null, // filled by the geometry pass
+      rotate: 0, // filled by the geometry pass
+      fontSizePx: extractDominantFontSizePx(content),
+      color: extractDominantColor(content, defaultColor),
+      cursiveFontFamily: entry.cursiveFontFamily,
+      degraded: false,
+    };
+  });
+}
+
 export function buildTimeline(
   scenes: readonly CompilerScene[],
   opts: ResolveTimelineOptions,
@@ -122,6 +175,7 @@ export function buildTimeline(
     const start = sceneStartMs.get(index) ?? 0;
     const end = sceneStartMs.get(index + 1) ?? totalDurationMs;
     const supported = scene.type === 'slide';
+    const bucket = buckets[index];
     return {
       id: scene.id,
       index,
@@ -131,7 +185,8 @@ export function buildTimeline(
       durationMs: Math.max(0, end - start),
       supported,
       base: { kind: supported ? 'slide-snapshot' : 'placeholder' },
-      ...buckets[index],
+      ...bucket,
+      handwriting: supported ? buildHandwritingSegments(scene, bucket.effects, start) : [],
     };
   });
 

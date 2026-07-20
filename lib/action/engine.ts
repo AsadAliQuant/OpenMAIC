@@ -15,6 +15,8 @@ import { useCanvasStore } from '@/lib/store/canvas';
 import { useWhiteboardHistoryStore } from '@/lib/store/whiteboard-history';
 import { useMediaGenerationStore, isMediaPlaceholder } from '@/lib/store/media-generation';
 import type { AudioPlayer } from '@/lib/utils/audio-player';
+import type { Scene } from '@/lib/types/stage';
+import { isSlideContent } from '@/lib/types/stage';
 import type {
   Action,
   SpotlightAction,
@@ -47,6 +49,7 @@ import {
   WIDGET_MS,
   wbDrawCodeMs,
   wbClearMs,
+  planSceneHandwriting,
 } from '@/lib/choreography';
 import katex from 'katex';
 import { createLogger } from '@/lib/logger';
@@ -211,6 +214,7 @@ export class ActionEngine {
 
   resetPlaybackVisualState(): void {
     this.clearEffects();
+    this.clearHandwriting();
     useCanvasStore.getState().pauseVideo();
     useCanvasStore.getState().setWhiteboardOpen(false);
     useCanvasStore.getState().setWhiteboardClearing(false);
@@ -218,6 +222,24 @@ export class ActionEngine {
     if (wb.success && wb.data) {
       this.stageAPI.whiteboard.update({ elements: [] }, wb.data.id);
     }
+  }
+
+  /**
+   * Begin the "tutor writes on the slide" reveal for a scene: compute which
+   * text elements write in on their spotlight cue vs. sequentially at slide
+   * start (see `planSceneHandwriting`) and hand the plan to the canvas store
+   * so `ScreenElement` can render hidden-then-written text instead of the
+   * static slide render. No-op for non-slide scenes.
+   */
+  beginSceneHandwriting(scene: Scene): void {
+    if (!isSlideContent(scene.content)) return;
+    const plan = planSceneHandwriting(scene.content.canvas.elements, scene.actions ?? []);
+    useCanvasStore.getState().beginHandwritingScene(scene.id, plan);
+  }
+
+  /** Clear the handwriting plan — text renders statically again (editor-equivalent). */
+  clearHandwriting(): void {
+    useCanvasStore.getState().clearHandwriting();
   }
 
   /** Schedule auto-clear for fire-and-forget effects */
@@ -234,6 +256,17 @@ export class ActionEngine {
   // ==================== Fire-and-forget ====================
 
   private executeSpotlight(action: SpotlightAction): void {
+    // If this spotlight is the handwriting cue for its element, start the
+    // write-in so it plays inside the dim/cutout (`startHandwriting` is a
+    // no-op if it already started — a later spotlight replay on an
+    // already-written element is just a plain spotlight). `HANDWRITING_MAX_MS`
+    // is kept below `EFFECT_AUTO_CLEAR_MS` so the write always finishes
+    // before this spotlight auto-clears.
+    const canvasState = useCanvasStore.getState();
+    if (canvasState.handwritingPlan?.[action.elementId]?.trigger === 'cue') {
+      canvasState.startHandwriting(action.elementId);
+    }
+
     useCanvasStore.getState().setSpotlight(action.elementId, {
       dimness: action.dimOpacity ?? 0.5,
     });

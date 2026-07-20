@@ -3,15 +3,21 @@ import {
   DESCRIPTORS,
   spotlightV1,
   laserV1,
+  handwritingV1,
   getDescriptor,
   AnimationDescriptorSchema,
 } from '@/lib/choreography';
 
 describe('animation descriptor registry', () => {
-  it('registers spotlight.v1 and laser.v1 under their versioned ids', () => {
-    expect(Object.keys(DESCRIPTORS).sort()).toEqual(['laser.v1', 'spotlight.v1']);
+  it('registers spotlight.v1, laser.v1, and handwriting.v1 under their versioned ids', () => {
+    expect(Object.keys(DESCRIPTORS).sort()).toEqual([
+      'handwriting.v1',
+      'laser.v1',
+      'spotlight.v1',
+    ]);
     expect(getDescriptor('spotlight.v1')).toBe(spotlightV1);
     expect(getDescriptor('laser.v1')).toBe(laserV1);
+    expect(getDescriptor('handwriting.v1')).toBe(handwritingV1);
     expect(getDescriptor('nope.v1')).toBeUndefined();
   });
 
