@@ -39,6 +39,7 @@ import {
 } from '@/lib/document/bundle';
 import { buildVideoManifestFromOutlines } from '@/lib/media/video-manifest';
 import { nanoid } from 'nanoid';
+import { syncSolverClassroom } from '@/lib/solver/sync';
 import type { Stage } from '@/lib/types/stage';
 import type {
   SceneOutline,
@@ -566,12 +567,17 @@ function GenerationPreviewContent() {
       const stage: Stage = {
         id: stageId,
         name: extractTopicFromRequirement(currentSession.requirements.requirement),
-        description: '',
+        // Solver stages keep the original question in the description so the
+        // per-user server history can show/store what was asked.
+        description: currentSession.requirements.solverMode
+          ? currentSession.requirements.requirement
+          : '',
         style: 'professional',
         createdAt: Date.now(),
         updatedAt: Date.now(),
         interactiveMode: !!currentSession.requirements.interactiveMode,
         taskEngineMode: currentSession.taskEngineMode === true,
+        solverMode: !!currentSession.requirements.solverMode,
       };
 
       // ── Generate outlines first (infers languageDirective) ──
@@ -1076,6 +1082,11 @@ function GenerationPreviewContent() {
 
       sessionStorage.removeItem('generationSession');
       await store.saveToStorage();
+      // Push the first snapshot to the logged-in user's solver history
+      // (fire-and-forget; no-op for non-solver stages or logged-out users).
+      if (currentSession.requirements.solverMode) {
+        void syncSolverClassroom(stage.id);
+      }
       router.push(`/classroom/${stage.id}`);
     } catch (err) {
       setIsOutlineStreaming(false);
