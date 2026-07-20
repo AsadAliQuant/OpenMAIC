@@ -193,7 +193,9 @@ function HomePage() {
 
   const loadClassrooms = async () => {
     try {
-      const list = await listStages();
+      // Math Solver solves have their own history on /solver — keep them out
+      // of the course-focused "Recent classrooms" grid.
+      const list = (await listStages()).filter((s) => !s.solverMode);
       setClassrooms(list);
       // Load first slide thumbnails
       if (list.length > 0) {
@@ -446,6 +448,15 @@ function HomePage() {
           className="hidden"
         />
       )}
+      {/* ═══ Math Solver entry point ═══ */}
+      <button
+        onClick={() => router.push('/solver')}
+        className="fixed top-4 left-4 z-50 flex items-center gap-1.5 rounded-full bg-orange-500 px-3.5 py-2 text-xs font-medium text-white shadow-sm hover:bg-orange-600 transition-colors"
+      >
+        <Sparkles className="size-3.5" />
+        Math Solver
+      </button>
+
       {/* ═══ Top-right pill (unchanged) ═══ */}
       <div
         ref={toolbarRef}

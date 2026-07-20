@@ -21,6 +21,7 @@ import {
   runClassroomLoad,
   saveGeneratedAgentsForCurrentLoad,
 } from '@/lib/classroom/load-classroom';
+import { syncSolverClassroom } from '@/lib/solver/sync';
 
 const log = createLogger('Classroom');
 
@@ -38,6 +39,12 @@ export default function ClassroomDetailPage() {
   const { generateRemaining, retrySingleOutline, stop } = useSceneGenerator({
     onComplete: () => {
       log.info('[Classroom] All scenes generated');
+      // Sync the finished deck to the logged-in user's solver history
+      // (fire-and-forget; no-op for non-solver stages or logged-out users).
+      const stage = useStageStore.getState().stage;
+      if (stage?.solverMode) {
+        void syncSolverClassroom(stage.id);
+      }
     },
   });
 
@@ -158,6 +165,11 @@ export default function ClassroomDetailPage() {
       // an interrupted generation. No-op if already complete or not all
       // outlines have scenes.
       useStageStore.getState().markGenerationCompleteIfDone();
+      // The onComplete sync above never ran for an already-materialized deck;
+      // push the finished solver deck to the user's server history here.
+      if (stage.solverMode) {
+        void syncSolverClassroom(stage.id);
+      }
       // Resume media only for outlines that still have a scene. On a finished
       // deck the user may have deleted a slide, leaving an orphaned outline;
       // generating its media would waste API calls on a slide that is gone.

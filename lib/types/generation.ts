@@ -69,6 +69,31 @@ export interface UploadedDocument {
 }
 
 /**
+ * Extra activity kinds a Math Solver classroom may contain beyond the always-on
+ * `slide` scenes. `quiz` and `pbl` map to their scene types; the rest map to
+ * `interactive` scenes with that widgetType. `procedural-skill` is deliberately
+ * excluded — it stays gated behind the vocational task-engine mode.
+ */
+export type SolverActivity =
+  | 'quiz'
+  | 'pbl'
+  | 'simulation'
+  | 'diagram'
+  | 'code'
+  | 'game'
+  | 'visualization3d';
+
+export const SOLVER_ACTIVITY_VALUES: readonly SolverActivity[] = [
+  'quiz',
+  'pbl',
+  'simulation',
+  'diagram',
+  'code',
+  'game',
+  'visualization3d',
+];
+
+/**
  * Simplified user requirements for course generation
  * All details (topic, duration, style, etc.) should be included in the requirement text
  */
@@ -79,6 +104,8 @@ export interface UserRequirements {
   webSearch?: boolean; // Enable web search for richer context
   interactiveMode?: boolean; // Enable Interactive Mode for interactive-first generation
   taskEngineMode?: boolean; // Enable vocational task-engine generation path
+  solverMode?: boolean; // Enable Math Solver tutor-style generation path
+  solverActivities?: SolverActivity[]; // Extra allowed solver activities; 'slide' always implied. Absent = quiz only.
 }
 
 // ==================== Stage 1 Output: Scene Outlines (Simplified) ====================
